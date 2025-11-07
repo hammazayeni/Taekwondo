@@ -74,7 +74,7 @@
 
   <div class="header">
     <div class="header-inner">
-      <div class="title">Fédération Tunisienne de Taekwondo – Système de Scoring Poomsae (V15)</div>
+      <div class="title">Taekwondo Sbeitla (V15)</div>
       <span id="phaseBanner" class="banner">Round: —</span>
       <span id="liveBadge" class="badge">LIVE: <b>OFF</b></span>
       <span id="fbStatus" class="badge err">Firebase: ⚠️ Déconnecté</span>
@@ -166,8 +166,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script>
     // ===== Firebase Config =====
-    const firebaseConfig = {
-    const firebaseConfig = {
+  const firebaseConfig = {
   apiKey: "AIzaSyD-I7DXx6AWBdypv-8ZRJo4U1l2k1gGS28",
   authDomain: "taekwondo-3a9e1.firebaseapp.com",
   projectId: "taekwondo-3a9e1",
@@ -178,8 +177,9 @@
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
 
     // ===== Helpers =====
     const $ = sel => document.querySelector(sel);
