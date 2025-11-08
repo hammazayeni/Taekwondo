@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Poomsae V15 – Judge Confirm • Admin • Display (Signature bottom-left)</title>
+  <title>Taekwondo Sbeitla – Judge Confirm • Admin • Display (Signature bottom-left)</title>
   <meta name="color-scheme" content="dark">
   <style>
     :root{
@@ -74,9 +74,9 @@
 
   <div class="header">
     <div class="header-inner">
-      <div class="title">Taekwondo Sbeitla (V15)</div>
+      <div class="title">Taekwondo Sbeitla</div>
       <span id="phaseBanner" class="banner">Round: —</span>
-      <span id="liveBadge" class="badge">LIVE: <b>OFF</b></span>
+      <span id="liveBadge" class="badge">LIVE: <b>ON</b></span>
       <span id="fbStatus" class="badge err">Firebase: ⚠️ Déconnecté</span>
       <div class="spacer"></div>
       <button class="btn ghost" onclick="logout()">🚪 Déconnexion</button>
@@ -115,17 +115,20 @@
         <div class="col-3">
           <label>Catégorie</label>
           <select id="selCategory">
+            <option>Ecole Male</option><option>Ecole Female</option>
+            <option>Benjamin Male</option><option>Benjamin Female</option>
+            <option>Minime Male</option><option>Minime Female</option>
             <option>Cadet Male</option><option>Cadet Female</option>
             <option>Junior Male</option><option>Junior Female</option>
             <option>Senior Male</option><option>Senior Female</option>
-            <option>Senior 2 Male</option><option>Senior 2 Female</option>
-            <option>Master 1</option><option>Master 2</option>
+           
           </select>
         </div>
         <div class="col-3">
           <label>Round</label>
           <select id="selRound">
-            <option>Round 1</option><option>Demi-finale</option><option>Finale</option>
+          <option>Round de 64</option><option>Round de 32</option><option>Round de 16</option><option>Demi-finale</option><option>Finale</option>
+
           </select>
         </div>
         <div class="col-12" style="text-align:right">
@@ -149,7 +152,7 @@
 
     <!-- DISPLAY -->
     <section id="panel-display" class="card hidden">
-      <h2>Affichage Public – Podium (Double Bronze) & Classement</h2>
+      <h2>Affichage Public – Podium & Classement</h2>
       <div id="displayPhase" class="muted" style="margin-bottom:8px">—</div>
       <div class="podium">
         <div class="pod silver"><div>🥈</div><h3 id="p2_name">—</h3><div class="score" id="p2_score">—</div></div>
