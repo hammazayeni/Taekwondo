@@ -212,9 +212,9 @@ firebase.initializeApp(firebaseConfig);
     auth.onAuthStateChanged(user=>{
       if(!user){ role=null; showPanel('login'); return; }
       const email = (user.email||"").toLowerCase();
-      if(email === "admin@poomsae.tn"){ role="admin"; showPanel('admin'); startAdmin(); }
-      else if(email === "display@poomsae.tn"){ role="display"; showPanel('display'); startDisplay(); }
-      else if(email.startsWith("j")){ role="judge"; judgeCode = email.split("@")[0].toUpperCase(); showPanel('judge'); startJudge(); }
+      if(email === "aziz@kyorugi.tn"){ role="admin"; showPanel('admin'); startAdmin(); }
+      else if(email === "display@kyorugi.tn"){ role="display"; showPanel('display'); startDisplay(); }
+      else if(email.startsWith("refree")){ role="judge"; judgeCode = email.split("@")[0].toUpperCase(); showPanel('judge'); startJudge(); }
       else { role=null; showPanel('login'); }
     });
 
