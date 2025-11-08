@@ -131,6 +131,7 @@
         <div class="col-12" style="text-align:right">
           <button class="btn" id="btnImport">Importer la liste → athletes</button>
           <button class="btn ghost" id="btnPublish">✅ Publier (catégorie + round)</button>
+      <button id="btnDeleteActive" class="danger">Supprimer liste active</button>
         </div>
       </div>
       <div id="importStatus" class="muted" style="margin-top:8px">—</div>
@@ -239,6 +240,24 @@ firebase.initializeApp(firebaseConfig);
       const cat = $("#selCategory").value; const rnd = $("#selRound").value;
       try{ await settingsDocRef.set({ currentCategory: cat, currentRound: rnd }, { merge:true }); fbStatusConnected(); alert("Publié : "+cat+" / "+rnd); }
       catch(e){ fbStatusDisconnected(e?.message); alert("Erreur publication: "+e.message); }
+    });
+    $("#btnDeleteActive").addEventListener("click", async () => {
+      const cat = $("#selCategory").value;
+      const rnd = $("#selRound").value;
+      if (!confirm(`Voulez-vous vraiment supprimer tous les athlètes de la catégorie "${cat}" pour le round "${rnd}" ?`)) return;
+
+      try {
+        const athletesSnapshot = await db.collection("athletes").where("category", "==", cat).where("round", "==", rnd).get();
+        const batch = db.batch();
+        athletesSnapshot.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+        refreshAdminList();
+        alert("Liste active supprimée !");
+      } catch (e) {
+        alert("Erreur lors de la suppression : " + e.message);
+      }
     });
     $("#btnImport").addEventListener("click", async ()=>{
       const file = $("#fileCSV").files[0]; if(!file){ alert("Sélectionne un CSV."); return; }
@@ -369,18 +388,20 @@ firebase.initializeApp(firebaseConfig);
           rows.push({ath,name: athMap[ath]?.name || ath, wins,losses,winRate,avgScore,count:arr.length});
         }
         rows.sort((a,b)=> b.winRate - a.winRate || b.avgScore - a.avgScore);
-        // Podium 4 places
-        $("#p1_name").textContent = rows[0]?.name || "—"; $("#p1_score").textContent = fmt(rows[0]?.winRate)+"%";
-        $("#p2_name").textContent = rows[1]?.name || "—"; $("#p2_score").textContent = fmt(rows[1]?.winRate)+"%";
-        $("#p3_name").textContent = rows[2]?.name || "—"; $("#p3_score").textContent = fmt(rows[2]?.winRate)+"%";
-        $("#p4_name").textContent = rows[3]?.name || "—"; $("#p4_score").textContent = fmt(rows[3]?.winRate)+"%";
+        const top3 = rows.slice(0, 3);
+        // Podium
+        $("#p1_name").textContent = top3[0]?.name || "—";
+        $("#p1_score").textContent = "Gold";
+        $("#p2_name").textContent = top3[1]?.name || "—";
+        $("#p2_score").textContent = "Silver";
+        $("#p3_name").textContent = top3[2]?.name || "—";
+        $("#p3_score").textContent = "Bronze";
         // Table
         const qualifying = isQualRound(rnd);
-        table.innerHTML="<tr><th>Rang</th><th>Athlète</th><th>Victoires</th><th>Défaites</th><th>% Victoires</th><th>Score Moy</th><th>Notes</th><th></th></tr>";
-        rows.forEach((r,i)=>{
-          const qualBadge = qualifying && i < 8 ? "<span class='chip ok'>✅ Qualifié(e)</span>" : "";
+        table.innerHTML="<tr><th>Rang</th><th>Athlète</th></tr>";
+        top3.forEach((r,i)=>{
           const tr=document.createElement("tr");
-          tr.innerHTML = `<td>${i+1}</td><td>${r.name}</td><td>${r.wins}</td><td>${r.losses}</td><td><b>${fmt(r.winRate)}%</b></td><td>${fmt(r.avgScore)}</td><td>${r.count}/5</td><td>${qualBadge}</td>`;
+          tr.innerHTML = `<td>${i+1}</td><td>${r.name}</td>`;
           table.appendChild(tr);
         });
         fbStatusConnected();
@@ -390,5 +411,9 @@ firebase.initializeApp(firebaseConfig);
 </body>
 </html>
 
+  
+ 
      
-        
+   
+   
+    
