@@ -164,10 +164,10 @@
   </main>
 
   <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-  <script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"></script>
+   <script>
     // ===== Firebase Config =====
   const firebaseConfig = {
   apiKey: "AIzaSyD-I7DXx6AWBdypv-8ZRJo4U1l2k1gGS28",
@@ -180,10 +180,13 @@
 };
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    const auth = firebase.auth();
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
     // ===== Helpers =====
     const $ = sel => document.querySelector(sel);
     const fmt = n => (Number.isFinite(n) ? n.toFixed(2).replace(".", ",") : "—");
@@ -269,9 +272,18 @@ function setPhaseBanner(round){
       const rnd = $("#selRound").value;
       if (!confirm(`Voulez-vous vraiment supprimer tous les athlètes de la catégorie "${cat}" pour le round "${rnd}" ?`)) return;
 
+      import { collection, getDocs, query, where, writeBatch, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ... existing code ...
+
+$("#btnDeleteActive").addEventListener("click", async () => {
+      const cat = $("#selCategory").value;
+      const rnd = $("#selRound").value;
+      if (!confirm(`Voulez-vous vraiment supprimer tous les athlètes de la catégorie "${cat}" pour le round "${rnd}" ?`)) return;
+
       try {
-        const athletesSnapshot = await db.collection("athletes").where("category", "==", cat).where("round", "==", rnd).get();
-        const batch = db.batch();
+        const athletesSnapshot = await getDocs(query(collection(db, "athletes"), where("category", "==", cat), where("round", "==", rnd)));
+        const batch = writeBatch(db);
         athletesSnapshot.forEach(doc => {
           batch.delete(doc.ref);
         });
@@ -285,23 +297,27 @@ function setPhaseBanner(round){
     $("#btnImport").addEventListener("click", async ()=>{
       const file = $("#fileCSV").files[0]; if(!file){ alert("Sélectionne un CSV."); return; }
       const cat = $("#selCategory").value; const rnd = $("#selRound").value;
+      import { setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
       const text = await file.text(); const lines = text.split(/\r?\n/).filter(l=>l.trim().length);
       const header = (lines.shift()||"").trim().toLowerCase();
       if(!/id\s*,\s*name\s*,\s*category\s*,\s*country/.test(header)){ $("#importStatus").innerHTML = "⚠️ En-tête invalide. Utilise: <code>id,name,category,country,club?</code>"; return; }
-      const batch = db.batch(); let count=0;
+      const batch = writeBatch(db); let count=0;
       for(const line of lines){
         const [id,name,category,country,club] = line.split(",").map(s=>s? s.trim():"");
         if(!id) continue;
-        batch.set(db.collection("athletes").doc(id), {id,name,category:category||cat,country,club:club||"",round:rnd,active:true},{merge:true}); count++;
+        batch.set(doc(db, "athletes", id), {id,name,category:category||cat,country,club:club||"",round:rnd,active:true},{merge:true}); count++;
       }
       try{ await batch.commit(); $("#importStatus").textContent = `✅ ${count} athlètes importés.`; fbStatusConnected(); refreshAdminList(); }
       catch(e){ fbStatusDisconnected(e?.message); $("#importStatus").textContent = "❌ Erreur import: "+e.message; }
     });
-    function startAdmin(){ settingsDocRef.get().then(s=>{ if(s.exists){ const d=s.data()||{}; $("#selCategory").value=d.currentCategory||$("#selCategory").value; $("#selRound").value=d.currentRound||$("#selRound").value; } refreshAdminList(); }).catch(e=>fbStatusDisconnected(e?.message)); }
-    function refreshAdminList(){
+import { getDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ... existing code ...
+
+function startAdmin(){ getDoc(settingsDocRef).then(s=>{ if(s.exists()){ const d=s.data()||{}; $("#selCategory").value=d.currentCategory||$("#selCategory").value; $("#selRound").value=d.currentRound||$("#selRound").value; } refreshAdminList(); }).catch(e=>fbStatusDisconnected(e?.message)); }    function refreshAdminList(){
       const box=$("#adminList"); box.innerHTML="<em>Chargement…</em>";
       const cat=currentCategory||$("#selCategory").value; const rnd=currentRound||$("#selRound").value;
-      db.collection("athletes").where("category","==",cat).get().then(snap=>{
+          getDocs(query(collection(db, "athletes"), where("category","==",cat))).then(snap=>{
         const rows=[]; snap.forEach(doc=>{ const d=doc.data(); if((d.round||rnd)===rnd && d.active!==false){ rows.push({id:doc.id, ...d}); } });
         rows.sort((a,b)=> a.id.localeCompare(b.id));
         if(!rows.length){ box.textContent="Aucun athlète pour cette sélection."; return; }
