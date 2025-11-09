@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Taekwondo Sbeitla – Judge Confirm • Admin • Display (Signature bottom-left)</title>
+  <title>Taekwondo Sbeitla (Signature bottom-left)</title>
   <meta name="color-scheme" content="dark">
   <style>
     :root{
@@ -149,7 +149,6 @@
       <div class="muted">Après envoi : ✅ OK + bouton ✏️ Modifier pour corriger.</div>
       <div id="judgeList" style="margin-top:10px"></div>
     </section>
-
     <!-- DISPLAY -->
     <section id="panel-display" class="card hidden">
       <h2>Affichage Public – Podium & Classement</h2>
@@ -298,10 +297,13 @@ firebase.initializeApp(firebaseConfig);
       const okBadge = submitted ? `<span id="${a.id}_ok" class="chip ok">✅ OK</span>` : `<span id="${a.id}_ok" class="chip ok hidden">✅ OK</span>`;
       const submitBtn = `<button class="btn small" id="${a.id}_submit" ${submitted?"style='display:none'":""} onclick="submitScore('${a.id}')">Soumettre</button>`;
       const editBtn = `<button class="btn small ghost" id="${a.id}_edit" ${submitted?"":"style='display:none'"} onclick="enableEdit('${a.id}')">✏️ Modifier</button>`;
-      return `<div class="card" id="${a.id}_card">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div><b>${a.id}</b> – ${a.name||""} <span class="badge">${a.category||""} • ${a.round||""}</span></div>
-          <div class="muted">Juge: ${judgeCode||"—"}</div>
+      // Check if this is a final round (semi-final or final)
+      const isFinalRound = currentRound && (currentRound.toLowerCase().includes('final') || currentRound.toLowerCase().includes('demi') || currentRound.toLowerCase().includes('semi'));
+      
+      let resultSection = '';
+      if (isFinalRound) {
+        // Show both result and place for final rounds
+        resultSection = `
         </div>
         <div class="row" style="margin-top:8px">
           <div class="col-6"><label>Résultat</label>
@@ -318,7 +320,42 @@ firebase.initializeApp(firebaseConfig);
               <option value="2">2eme place</option>
               <option value="3">3eme place</option>
             </select>
+             </div>`;
+      } else {
+        // Show only result and next round for early rounds
+        resultSection = `
+          <div class="col-6"><label>Résultat</label>
+            <select ${dis} id="${a.id}_result" style="width:100%;">
+              <option value="">Sélectionner...</option>
+              <option value="win">✅ Win</option>
+              <option value="lose">❌ Lose</option>
+            </select>
           </div>
+          <div class="col-6"><label>Prochain Round</label>
+            <div style="padding:8px;background:var(--bg-light);border-radius:4px;color:var(--text-muted);">
+              ${getNextRound(currentRound)}
+            </div>
+          </div>`;
+      }
+       function getNextRound(currentRound) {
+      if (!currentRound) return "—";
+      const roundLower = currentRound.toLowerCase();
+      if (roundLower.includes('64')) return "Round 32";
+      if (roundLower.includes('32')) return "Round 16";
+      if (roundLower.includes('16')) return "Quart de finale";
+      if (roundLower.includes('quart')) return "Demi-finale";
+      if (roundLower.includes('demi') || roundLower.includes('semi')) return "Finale";
+      if (roundLower.includes('final')) return "Champion";
+      return "—";
+    }
+      
+      return `<div class="card" id="${a.id}_card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><b>${a.id}</b> – ${a.name||""} <span class="badge">${a.category||""} • ${a.round||""}</span></div>
+          <div class="muted">Juge: ${judgeCode||"—"}</div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          ${resultSection}
           <div class="col-12" style="display:flex; gap:8px; justify-content:flex-end; align-items:center; margin-top:8px">
             ${okBadge}
             ${submitBtn}
