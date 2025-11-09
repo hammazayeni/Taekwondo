@@ -190,7 +190,28 @@ firebase.initializeApp(firebaseConfig);
     const toNum = v => { if(v==null||v==='') return NaN; if(typeof v==="string") v=v.replace(",","."); const x=parseFloat(v); return Number.isFinite(x)?x:NaN; };
     const clamp = (x,min,max)=> Number.isFinite(x)?Math.max(min,Math.min(max,x)):0;
     function setLive(on){ $("#liveBadge").innerHTML = "LIVE: <b>"+(on?"ON":"OFF")+"</b>"; }
-    function setPhaseBanner(round){ $("#phaseBanner").innerHTML = "Round: <b>"+(round||"—")+"</b>"; $("#displayPhase").textContent = round ? (round === "Finale" ? "FINAL – PODIUM OFFICIEL" : (round === "Round 1" ? "ROUND 1 – QUALIFICATIONS" : round)) : "—"; }
+function setPhaseBanner(round){ 
+      $("#phaseBanner").innerHTML = "Round: <b>"+(round||"—")+"</b>"; 
+      let displayText = "—";
+      if (round) {
+        if (round.toLowerCase().includes('final')) {
+          displayText = "FINAL – PODIUM OFFICIEL";
+        } else if (round.toLowerCase().includes('demi') || round.toLowerCase().includes('semi')) {
+          displayText = "DEMI-FINAL – QUALIFICATION POUR LA FINALE";
+        } else if (round.toLowerCase().includes('64')) {
+          displayText = "ROUND 64 – TOUR ÉLIMINATOIRE";
+        } else if (round.toLowerCase().includes('32')) {
+          displayText = "ROUND 32 – TOUR ÉLIMINATOIRE";
+        } else if (round.toLowerCase().includes('16')) {
+          displayText = "ROUND 16 – TOUR ÉLIMINATOIRE";
+        } else if (round === "Round 1") {
+          displayText = "ROUND 1 – QUALIFICATIONS";
+        } else {
+          displayText = round;
+        }
+      }
+      $("#displayPhase").textContent = displayText;
+    }   
     function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"), 2800); }
     function beep(){ try{ const ctx = new (window.AudioContext||window.webkitAudioContext)(); const o = ctx.createOscillator(), g = ctx.createGain(); o.type="sine"; o.frequency.value=880; o.connect(g); g.connect(ctx.destination); g.gain.value=0.001; g.gain.exponentialRampToValueAtTime(0.1, ctx.currentTime+0.01); o.start(); setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.25); o.stop(ctx.currentTime+0.3); }, 50); }catch(e){} }
 
@@ -380,19 +401,32 @@ firebase.initializeApp(firebaseConfig);
       }).catch(e=>fbStatusDisconnected(e?.message));
     }
     async function submitScore(athleteId){
-      if(!judgeCode){ alert("Connexion juge requise."); return; }
-      const result = document.getElementById(athleteId+"_result").value;
-      const place = document.getElementById(athleteId+"_place").value;
-      if(!result || !place){ alert("Veuillez sélectionner Win/Lose et une place."); return; }
+      const isFinalRound = currentRound && (currentRound.toLowerCase().includes('final') || currentRound.toLowerCase().includes('demi') || currentRound.toLowerCase().includes('semi'));
+      
+      // Only require place for final rounds
+      if(!result || (isFinalRound && !document.getElementById(athleteId+"_place").value)){ 
+        alert(isFinalRound ? "Veuillez sélectionner Win/Lose et une place." : "Veuillez sélectionner Win/Lose."); 
+        return; 
+      }
+      
       try{
-        await db.collection("scores").doc(`${athleteId}_${judgeCode}`).set({
+        const data = {
           athlete: athleteId, judge: judgeCode,
-          result, place,
+          result,
           category: currentCategory, round: currentRound,
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge:true });
+       };
+        
+        // Only include place for final rounds
+        if (isFinalRound) {
+          data.place = document.getElementById(athleteId+"_place").value;
+        }
+        
+        await db.collection("scores").doc(`${athleteId}_${judgeCode}`).set(data, { merge:true });
         document.getElementById(`${athleteId}_result`).disabled=true;
+        if (isFinalRound) {
         document.getElementById(`${athleteId}_place`).disabled=true;
+          }
         document.getElementById(`${athleteId}_submit`).style.display="none";
         document.getElementById(`${athleteId}_edit`).style.display="";
         const ok = document.getElementById(`${athleteId}_ok`); ok.classList.remove("hidden");
@@ -400,7 +434,7 @@ firebase.initializeApp(firebaseConfig);
         fbStatusConnected();
       }catch(e){
         fbStatusDisconnected(e?.message);
-        alert("Erreur d’envoi : "+e.message);
+        alert("Erreur d'envoi : "+e.message);
       }
     }
     window.submitScore=submitScore;
@@ -436,17 +470,48 @@ firebase.initializeApp(firebaseConfig);
         }
         rows.sort((a,b)=> b.winRate - a.winRate || b.avgScore - a.avgScore);
         const top3 = rows.slice(0, 3);
-        // Podium
+        // Check if this is a final round (semi-final or final)
+        const isFinalRound = rnd && (rnd.toLowerCase().includes('final') || rnd.toLowerCase().includes('demi') || rnd.toLowerCase().includes('semi'));
+        
+        if (isFinalRound) {
+          // Show podium and medals for final rounds
         $("#p1_name").textContent = top3[0]?.name || "—";
-        $("#p1_score").textContent = "Gold";
+        $("#p1_score").textContent = "🥇 Gold";
         $("#p2_name").textContent = top3[1]?.name || "—";
-        $("#p2_score").textContent = "Silver";
+        $("#p2_score").textContent = "🥈 Silver";
         $("#p3_name").textContent = top3[2]?.name || "—";
-        $("#p3_score").textContent = "Bronze";
-        // Table
-        const qualifying = isQualRound(rnd);
-        table.innerHTML="<tr><th>Rang</th><th>Athlète</th></tr>";
-        top3.forEach((r,i)=>{
+        $("#p3_score").textContent = "🥉 Bronze";
+          
+          // Show podium
+          document.querySelector('.podium').style.display = 'grid';
+          
+          // Show detailed results table
+          table.innerHTML="<tr><th>Rang</th><th>Athlète</th><th>Vict.</th><th>Déf.</th><th>% Vict.</th><th>Score Moy.</th></tr>";
+          top3.forEach((r,i)=>{
+            const tr=document.createElement("tr");
+            tr.innerHTML = `<td>${i+1}</td><td>${r.name}</td><td>${r.wins}</td><td>${r.losses}</td><td>${r.winRate.toFixed(1)}%</td><td>${r.avgScore.toFixed(1)}</td>`;
+            table.appendChild(tr);
+            }
+
+          });
+         }
+
+        } else {
+          // For early rounds (64, 32, 16), show only basic info
+          $("#p1_name").textContent = "Qualification";
+          $("#p1_score").textContent = "Round";
+          $("#p2_name").textContent = "En";
+          $("#p2_score").textContent = "Cours";
+          $("#p3_name").textContent = "";
+          $("#p3_score").textContent = "";
+          
+          // Hide podium for early rounds
+          document.querySelector('.podium').style.display = 'none';
+          
+          // Show simplified table with just athlete names and rank
+          table.innerHTML="<tr><th>Rang</th><th>Athlète</th></tr>";
+          rows.forEach((r,i)=>{
+            if (i < 10) { // Show top 10 for early rounds
           const tr=document.createElement("tr");
           tr.innerHTML = `<td>${i+1}</td><td>${r.name}</td>`;
           table.appendChild(tr);
