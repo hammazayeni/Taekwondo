@@ -498,9 +498,241 @@ const firebaseConfig = {
         const byAth={};
         scoreSnap.forEach(doc=>{ const d=doc.data(); if(d.category===cat && d.round===rnd && athletes.includes(d.athlete)){ (byAth[d.athlete] ||= []).push(d); } });
         
+        // ===== JUDGE with confirm + correction =====
+    function startJudge(){ refreshJudgeList(); }
+    function judgeCard(a, submitted){
+      const dis = submitted ? "disabled" : "";
+      const okBadge = submitted ? `<span id="${a.id}_ok" class="chip ok">✅ OK</span>` : `<span id="${a.id}_ok" class="chip ok hidden">✅ OK</span>`;
+      const submitBtn = `<button class="btn small" id="${a.id}_submit" ${submitted?"style='display:none'":""} onclick="submitScore('${a.id}')">Soumettre</button>`;
+      const editBtn = `<button class="btn small ghost" id="${a.id}_edit" ${submitted?"":"style='display:none'"} onclick="enableEdit('${a.id}')">✏️ Modifier</button>`;
+      
+      // Detect round type
+      const round = a.round || currentRound;
+      const isFinal = round && (round.toLowerCase().includes('finale') || round.toLowerCase().includes('final'));
+      const isElimination = round && (round.toLowerCase().includes('64') || round.toLowerCase().includes('32') || round.toLowerCase().includes('16'));
+      
+      if (isFinal) {
+        // Final round: Show win/lose dropdown and medal labels
+        const medalLabel = a.medal || '';
+        const medalClass = medalLabel === '1er' ? 'gold' : medalLabel === '2eme' ? 'silver' : medalLabel === '3eme' ? 'bronze' : '';
+        const medalIcon = medalLabel === '1er' ? '🥇' : medalLabel === '2eme' ? '🥈' : medalLabel === '3eme' ? '🥉' : '';
+        
+        return `<div class="card ${medalClass}" id="${a.id}_card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div><b>${a.id}</b> – ${a.name||""} <span class="badge">${a.category||""} • ${a.round||""}</span></div>
+            <div class="muted">Juge: ${judgeCode||"—"}</div>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <div class="col-4">
+              <label>Résultat</label>
+              <select ${dis} id="${a.id}_result" onchange="updateMedal('${a.id}')">
+                <option value="">Sélectionner</option>
+                <option value="win">✅ Win</option>
+                <option value="lose">❌ Lose</option>
+              </select>
+            </div>
+            <div class="col-4">
+              <label>Place</label>
+              <select ${dis} id="${a.id}_place">
+                <option value="">Sélectionner</option>
+                <option value="1er">${medalIcon} 1er place</option>
+                <option value="2eme">${medalIcon} 2eme place</option>
+                <option value="3eme">${medalIcon} 3eme place</option>
+              </select>
+            </div>
+            <div class="col-4" style="display:flex; align-items:flex-end; gap:8px; justify-content:flex-end">
+              ${okBadge}
+              ${submitBtn}
+              ${editBtn}
+            </div>
+          </div>
+        </div>`;
+      } else if (isElimination) {
+        // Elimination round: Show only winner selection and basic info
+        return `<div class="card" id="${a.id}_card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div><b>${a.id}</b> – ${a.name||""} <span class="badge">${a.category||""} • ${a.round||""}</span></div>
+            <div class="muted">Club: ${a.club||"—"}</div>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <div class="col-6">
+              <label>Résultat</label>
+              <select ${dis} id="${a.id}_result">
+                <option value="">Sélectionner</option>
+                <option value="win">✅ Gagnant</option>
+                <option value="lose">❌ Perdant</option>
+              </select>
+            </div>
+            <div class="col-6" style="display:flex; align-items:flex-end; gap:8px; justify-content:flex-end">
+              ${okBadge}
+              ${submitBtn}
+              ${editBtn}
+            </div>
+          </div>
+        </div>`;
+      } else {
+        // Other rounds: Keep original scoring system
+        return `<div class="card" id="${a.id}_card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div><b>${a.id}</b> – ${a.name||""} <span class="badge">${a.category||""} • ${a.round||""}</span></div>
+            <div class="muted">Juge: ${judgeCode||"—"}</div>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <div class="col-3"><label>P1 ACC (0–6)</label><input ${dis} id="${a.id}_P1_acc" placeholder="5,20"></div>
+            <div class="col-3"><label>P1 PRES (0–4)</label><input ${dis} id="${a.id}_P1_pres" placeholder="3,80"></div>
+            <div class="col-3"><label>P2 ACC (0–6)</label><input ${dis} id="${a.id}_P2_acc" placeholder="5,00"></div>
+            <div class="col-3"><label>P2 PRES (0–4)</label><input ${dis} id="${a.id}_P2_pres" placeholder="4,00"></div>
+            <div class="col-12" style="display:flex; gap:8px; justify-content:flex-end; align-items:center; margin-top:8px">
+              ${okBadge}
+              ${submitBtn}
+              ${editBtn}
+            </div>
+          </div>
+        </div>`;
+      }
+    }
+    function refreshJudgeList(){
+      const host=$("#judgeList"); host.innerHTML="<em>Chargement…</em>";
+      const cat=currentCategory, rnd=currentRound;
+      Promise.all([
+        db.collection("athletes").where("category","==",cat).get(),
+        db.collection("scores").where("judge","==",judgeCode).get()
+      ]).then(([athSnap, scoreSnap])=>{
+        const submittedSet = new Set();
+        scoreSnap.forEach(doc=>{ const d=doc.data(); if(d.category===cat && d.round===rnd){ submittedSet.add(d.athlete); } });
+        const arr=[];
+        athSnap.forEach(doc=>{ const d=doc.data(); if((d.round||rnd)===rnd && d.active!==false) arr.push({id:doc.id, ...d}); });
+        if(!arr.length){ host.innerHTML="Aucun athlète publié pour cette sélection."; return; }
+        host.innerHTML = arr.map(a=> judgeCard(a, submittedSet.has(a.id))).join("");
+      }).catch(e=>fbStatusDisconnected(e?.message));
+    }
+    async function submitScore(athleteId){
+      if(!judgeCode){ alert("Connexion juge requise."); return; }
+      
+      // Detect round type
+      const round = currentRound;
+      const isFinal = round && (round.toLowerCase().includes('finale') || round.toLowerCase().includes('final'));
+      const isElimination = round && (round.toLowerCase().includes('64') || round.toLowerCase().includes('32') || round.toLowerCase().includes('16'));
+      
+      let scoreData = {
+        athlete: athleteId, judge: judgeCode,
+        category: currentCategory, round: currentRound,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      if (isFinal) {
+        // Final round: Get result and place
+        const result = document.getElementById(`${athleteId}_result`).value;
+        const place = document.getElementById(`${athleteId}_place`).value;
+        
+        if (!result) { alert("Veuillez sélectionner un résultat (win/lose)."); return; }
+        if (result === 'win' && !place) { alert("Veuillez sélectionner une place pour le gagnant."); return; }
+        
+        scoreData.result = result;
+        scoreData.place = place;
+        scoreData.medal = place;
+        
+      } else if (isElimination) {
+        // Elimination round: Get result only
+        const result = document.getElementById(`${athleteId}_result`).value;
+        
+        if (!result) { alert("Veuillez sélectionner un résultat (gagnant/perdant)."); return; }
+        
+        scoreData.result = result;
+        
+      } else {
+        // Other rounds: Original scoring system
+        const P1_ACC = clamp(toNum(document.getElementById(athleteId+"_P1_acc").value),0,6);
+        const P1_PRES= clamp(toNum(document.getElementById(athleteId+"_P1_pres").value),0,4);
+        const P2_ACC = clamp(toNum(document.getElementById(athleteId+"_P2_acc").value),0,6);
+        const P2_PRES= clamp(toNum(document.getElementById(athleteId+"_P2_pres").value),0,4);
+        
+        scoreData.P1_ACC = P1_ACC;
+        scoreData.P1_PRES = P1_PRES;
+        scoreData.P2_ACC = P2_ACC;
+        scoreData.P2_PRES = P2_PRES;
+        scoreData.totalP1 = P1_ACC + P1_PRES;
+        scoreData.totalP2 = P2_ACC + P2_PRES;
+      }
+      
+      try{
+        await db.collection("scores").doc(`${athleteId}_${judgeCode}`).set(scoreData, { merge:true });
+        
+        // Disable inputs based on round type
+        if (isFinal) {
+          ["result", "place"].forEach(s=>{ const el=document.getElementById(`${athleteId}_`+s); if(el) el.disabled=true; });
+        } else if (isElimination) {
+          ["result"].forEach(s=>{ const el=document.getElementById(`${athleteId}_`+s); if(el) el.disabled=true; });
+        } else {
+          ["P1_acc","P1_pres","P2_acc","P2_pres"].forEach(s=>{ const el=document.getElementById(`${athleteId}_`+s); if(el) el.disabled=true; });
+        }
+        
+        document.getElementById(`${athleteId}_submit`).style.display="none";
+        document.getElementById(`${athleteId}_edit`).style.display="";
+        const ok = document.getElementById(`${athleteId}_ok`); ok.classList.remove("hidden");
+        beep(); toast(`✅ Résultat enregistré pour ${athleteId}`);
+        fbStatusConnected();
+      }catch(e){
+        fbStatusDisconnected(e?.message);
+        alert("Erreur d'envoi : "+e.message);
+      }
+    }
+    window.submitScore=submitScore;
+    function enableEdit(athleteId){
+      const round = currentRound;
+      const isFinal = round && (round.toLowerCase().includes('finale') || round.toLowerCase().includes('final'));
+      const isElimination = round && (round.toLowerCase().includes('64') || round.toLowerCase().includes('32') || round.toLowerCase().includes('16'));
+
+      if (isFinal) {
+        ["result", "place"].forEach(s=>{ const el=document.getElementById(`${athleteId}_`+s); if(el) el.disabled=false; });
+      } else if (isElimination) {
+        ["result"].forEach(s=>{ const el=document.getElementById(`${athleteId}_`+s); if(el) el.disabled=false; });
+      } else {
+        ["P1_acc","P1_pres","P2_acc","P2_pres"].forEach(s=>{ const el=document.getElementById(`${athleteId}_`+s); if(el) el.disabled=false; });
+      }
+
+      document.getElementById(`${athleteId}_submit`).style.display="";
+      document.getElementById(`${athleteId}_edit`).style.display="none";
+    }
+    window.enableEdit=enableEdit;
+    
+    // ===== Medal update function for finals =====
+    function updateMedal(athleteId) {
+      const resultSelect = document.getElementById(`${athleteId}_result`);
+      const placeSelect = document.getElementById(`${athleteId}_place`);
+      
+      if (resultSelect && placeSelect) {
+        const result = resultSelect.value;
+        if (result === 'win') {
+          // Enable place selection for winners
+          placeSelect.disabled = false;
+        } else {
+          // Disable and reset place for losers
+          placeSelect.disabled = true;
+          placeSelect.value = '';
+        }
+      }
+    }
+    window.updateMedal=updateMedal;
+
+    // ===== DISPLAY =====
+    let unsubScores=null;
+    function startDisplay(){ refreshDisplay(); if(unsubScores) unsubScores(); unsubScores=db.collection("scores").orderBy("updatedAt","desc").onSnapshot(()=>refreshDisplay(), e=>fbStatusDisconnected(e?.message)); }
+    function isQualRound(r){ return (r||"").toLowerCase().includes("round 1") || (r||"").toLowerCase().includes("prélim"); }
+    function isFinalRound(r){ return (r||"").toLowerCase().includes("finale") || (r||"").toLowerCase().includes("final"); }
+    function refreshDisplay(){
+      const table=$("#displayTable"); const cat=currentCategory, rnd=currentRound;
+      setPhaseBanner(rnd);
+      Promise.all([ db.collection("athletes").where("category","==",cat).get(), db.collection("scores").get() ])
+      .then(([athSnap, scoreSnap])=>{
+        const athletes=[]; const athMap={};
+        athSnap.forEach(doc=>{ const d=doc.data(); if((d.round||rnd)===rnd && d.active!==false){ athletes.push(doc.id); athMap[doc.id]=d; } });
+        const byAth={};
+        scoreSnap.forEach(doc=>{ const d=doc.data(); if(d.category===cat && d.round===rnd && athletes.includes(d.athlete)){ (byAth[d.athlete] ||= []).push(d); } });
+        
         if (isFinalRound(rnd)) {
           // FINAL ROUND: Show judge selections for medal placements
-          const medalSelections = { 1: null, 2: null, 3: null, 4: null };
+          const medalSelections = { 1: null, 2: null, 3: null };
           
           // Process judge selections for medal placements
           for (const [ath, arr] of Object.entries(byAth)) {
@@ -509,7 +741,7 @@ const firebaseConfig = {
               // Use the most recent selection for each place
               const mostRecent = winnerScores.sort((a, b) => b.updatedAt?.seconds - a.updatedAt?.seconds)[0];
               const place = parseInt(mostRecent.place);
-              if (place >= 1 && place <= 4) {
+              if (place >= 1 && place <= 3) {
                 medalSelections[place] = { 
                   ath, 
                   name: athMap[ath]?.name || ath,
@@ -528,7 +760,6 @@ const firebaseConfig = {
           $("#p3_name").textContent = medalSelections[3]?.name || "—";
           $("#p3_score").textContent = medalSelections[3] ? "🥉" : "—";
           $("#p4_name").textContent = medalSelections[4]?.name || "—";
-          $("#p4_score").textContent = medalSelections[4] ? "4️⃣" : "—";
           
           // Table for finals - show judge selections
           table.innerHTML="<tr><th>Rang</th><th>Athlète</th><th>Sélection Juge</th><th>Juge</th><th></th></tr>";
@@ -544,6 +775,33 @@ const firebaseConfig = {
           
         } else {
           // NON-FINAL ROUNDS: Original calculated scoring system
+          const rows=[];
+          for(const [ath,arr] of Object.entries(byAth)){
+            const p1 = arr.map(x=>x.totalP1).filter(Number.isFinite);
+            const p2 = arr.map(x=>x.totalP2).filter(Number.isFinite);
+            const p1Avg = p1.length? p1.reduce((a,b)=>a+b,0)/p1.length : 0;
+            const p2Avg = p2.length? p2.reduce((a,b)=>a+b,0)/p2.length : 0;
+            const final = (p1Avg + p2Avg)/2;
+            rows.push({ath,name: athMap[ath]?.name || ath, p1Avg,p2Avg,final,count:arr.length});
+          }
+          rows.sort((a,b)=> b.final - a.final);
+          
+          // Podium 3 places with calculated scores
+          $("#p1_name").textContent = rows[0]?.name || "—"; $("#p1_score").textContent = fmt(rows[0]?.final);
+          $("#p2_name").textContent = rows[1]?.name || "—"; $("#p2_score").textContent = fmt(rows[1]?.final);
+          $("#p3_name").textContent = rows[2]?.name || "—"; $("#p3_score").textContent = fmt(rows[2]?.final);
+          
+          // Table with calculated scores
+          const qualifying = isQualRound(rnd);
+          table.innerHTML="<tr><th>Rang</th><th>Athlète</th><th>P1 Moy</th><th>P2 Moy</th><th>Final</th><th>Notes</th><th></th></tr>";
+          rows.forEach((r,i)=>{
+            const qualBadge = qualifying && i < 8 ? "<span class='chip ok'>✅ Qualifié(e)</span>" : "";
+            const tr=document.createElement("tr");
+            tr.innerHTML = `<td>${i+1}</td><td>${r.name}</td><td>${fmt(r.p1Avg)}</td><td>${fmt(r.p2Avg)}</td><td><b>${fmt(r.final)}</b></td><td>${r.count}/5</td><td>${qualBadge}</td>`;
+            table.appendChild(tr);
+          });
+        }
+        
           const rows=[];
           for(const [ath,arr] of Object.entries(byAth)){
             const p1 = arr.map(x=>x.totalP1).filter(Number.isFinite);
