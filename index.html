@@ -125,10 +125,6 @@
           </select>
         </div>
         <div class="col-3">
-          <label>Poids</label>
-          <input id="poids" type="text" placeholder="Poids">
-        </div>
-        <div class="col-3">
           <label>Round</label>
           <select id="selRound">
           <option>Round de 64</option><option>Round de 32</option><option>Round de 16</option><option>Demi-finale</option><option>Finale</option>
@@ -157,7 +153,6 @@
     <!-- DISPLAY -->
     <section id="panel-display" class="card hidden">
       <h2>Affichage Public – Podium & Classement</h2>
-      <div id="displayCategory" class="muted" style="margin-bottom:8px">—</div>
       <div id="displayPhase" class="muted" style="margin-bottom:8px">—</div>
       <div class="podium">
         <div class="pod silver"><div>🥈</div><h3 id="p2_name">—</h3><div class="score" id="p2_score">—</div></div>
@@ -170,9 +165,9 @@
   </main>
 
   <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script>
     // ===== Firebase Config =====
   const firebaseConfig = {
@@ -186,9 +181,9 @@
 };
 
 // Initialize Firebase
-const firebaseApp = firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const auth = firebase.auth();
+firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
 
     // ===== Helpers =====
     const $ = sel => document.querySelector(sel);
@@ -196,28 +191,7 @@ const auth = firebase.auth();
     const toNum = v => { if(v==null||v==='') return NaN; if(typeof v==="string") v=v.replace(",","."); const x=parseFloat(v); return Number.isFinite(x)?x:NaN; };
     const clamp = (x,min,max)=> Number.isFinite(x)?Math.max(min,Math.min(max,x)):0;
     function setLive(on){ $("#liveBadge").innerHTML = "LIVE: <b>"+(on?"ON":"OFF")+"</b>"; }
-    function setPhaseBanner(round){ 
-      $("#phaseBanner").innerHTML = "Round: <b>"+(round||"—")+"</b>"; 
-      let displayText = "—";
-      if (round) {
-        if (round.toLowerCase().includes('final')) {
-          displayText = "FINAL – PODIUM OFFICIEL";
-        } else if (round.toLowerCase().includes('demi') || round.toLowerCase().includes('semi')) {
-          displayText = "DEMI-FINAL – QUALIFICATION POUR LA FINALE";
-        } else if (round.toLowerCase().includes('64')) {
-          displayText = "ROUND 64 – TOUR ÉLIMINATOIRE";
-        } else if (round.toLowerCase().includes('32')) {
-          displayText = "ROUND 32 – TOUR ÉLIMINATOIRE";
-        } else if (round.toLowerCase().includes('16')) {
-          displayText = "ROUND 16 – TOUR ÉLIMINATOIRE";
-        } else if (round === "Round 1") {
-          displayText = "ROUND 1 – QUALIFICATIONS";
-        } else {
-          displayText = round;
-        }
-      }
-      $("#displayPhase").textContent = displayText;
-    }
+    function setPhaseBanner(round){ $("#phaseBanner").innerHTML = "Round: <b>"+(round||"—")+"</b>"; $("#displayPhase").textContent = round ? (round === "Finale" ? "FINAL – PODIUM OFFICIEL" : (round === "Round 1" ? "ROUND 1 – QUALIFICATIONS" : round)) : "—"; }
     function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"), 2800); }
     function beep(){ try{ const ctx = new (window.AudioContext||window.webkitAudioContext)(); const o = ctx.createOscillator(), g = ctx.createGain(); o.type="sine"; o.frequency.value=880; o.connect(g); g.connect(ctx.destination); g.gain.value=0.001; g.gain.exponentialRampToValueAtTime(0.1, ctx.currentTime+0.01); o.start(); setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.25); o.stop(ctx.currentTime+0.3); }, 50); }catch(e){} }
 
@@ -229,19 +203,13 @@ const auth = firebase.auth();
     $("#btnLogin").addEventListener("click", async ()=>{
       const email = $("#loginEmail").value.trim();
       const pass = $("#loginPassword").value.trim();
-
-// ... existing code ...
-
-try{ await auth.signInWithEmailAndPassword(email, pass); $("#loginError").textContent=""; }
+      try{ await auth.signInWithEmailAndPassword(email, pass); $("#loginError").textContent=""; }
       catch(e){ $("#loginError").textContent = "Identifiants invalides."; }
-
-// ... existing code ...
-
-function logout(){ auth.signOut(); }
+    });
+    function logout(){ auth.signOut(); }
 
     let role = null; let judgeCode = null;
-
-auth.onAuthStateChanged(user => {
+    auth.onAuthStateChanged(user=>{
       if(!user){ role=null; showPanel('login'); return; }
       const email = (user.email||"").toLowerCase();
       if(email === "aziz@kyorugi.tn"){ role="admin"; showPanel('admin'); startAdmin(); }
@@ -251,17 +219,12 @@ auth.onAuthStateChanged(user => {
     });
 
     // ===== SETTINGS =====
-    
-
-// ... existing code ...
-
-const settingsDocRef = db.doc("settings/competition");
-let currentCategory = null; let currentRound = null; let currentPoids = null;
-settingsDocRef.onSnapshot(docSnap => {
-      const d = docSnap.data()||{};
+    const settingsDocRef = db.collection("settings").doc("competition");
+    let currentCategory = null; let currentRound = null;
+    settingsDocRef.onSnapshot(doc=>{
+      const d = doc.data()||{};
       currentCategory = d.currentCategory || $("#selCategory")?.value || "Cadet Male";
       currentRound    = d.currentRound    || $("#selRound")?.value    || "Round 1";
-      currentPoids    = d.currentPoids    || $("#poids")?.value    || "";
       setPhaseBanner(currentRound);
       setLive(true); setTimeout(()=>setLive(false), 1000);
       fbStatusConnected();
@@ -273,33 +236,15 @@ settingsDocRef.onSnapshot(docSnap => {
     // ===== Firebase status badge =====
     function fbStatusConnected(){ const el = $("#fbStatus"); el.classList.remove("err"); el.classList.add("ok"); el.textContent = "Firebase: ✔️ Connecté"; }
     function fbStatusDisconnected(msg){ const el = $("#fbStatus"); el.classList.remove("ok"); el.classList.add("err"); el.textContent = "Firebase: ⚠️ Déconnecté"; if(msg) console.warn("Firestore stream error:", msg); }
-    
-
-// ... existing code ...
-
-db.collection("settings").limit(1).get().then(()=>fbStatusConnected()).catch(e=>fbStatusDisconnected(e?.message));
+    db.collection("settings").limit(1).get().then(()=>fbStatusConnected()).catch(e=>fbStatusDisconnected(e?.message));
 
     // ===== ADMIN (import + publish) =====
     $("#btnPublish").addEventListener("click", async ()=>{
-      const cat = $("#selCategory").value; const rnd = $("#selRound").value; const pds = $("#poids").value;
-      
-// ... existing code ...
-
-// ... existing code ...
-
-try{ await setDoc(settingsDocRef, { currentCategory: cat, currentRound: rnd, currentPoids: pds }, { merge:true }); fbStatusConnected(); alert("Publié : "+cat+" / "+rnd+" / "+pds); }
-        catch(e){ fbStatusDisconnected(e?.message); alert("Erreur publication: "+e.message); }
+      const cat = $("#selCategory").value; const rnd = $("#selRound").value;
+      try{ await settingsDocRef.set({ currentCategory: cat, currentRound: rnd }, { merge:true }); fbStatusConnected(); alert("Publié : "+cat+" / "+rnd); }
+      catch(e){ fbStatusDisconnected(e?.message); alert("Erreur publication: "+e.message); }
     });
     $("#btnDeleteActive").addEventListener("click", async () => {
-      const cat = $("#selCategory").value;
-      const rnd = $("#selRound").value;
-      if (!confirm(`Voulez-vous vraiment supprimer tous les athlètes de la catégorie "${cat}" pour le round "${rnd}" ?`)) return;
-
-      
-
-// ... existing code ...
-
-$("#btnDeleteActive").addEventListener("click", async () => {
       const cat = $("#selCategory").value;
       const rnd = $("#selRound").value;
       if (!confirm(`Voulez-vous vraiment supprimer tous les athlètes de la catégorie "${cat}" pour le round "${rnd}" ?`)) return;
@@ -325,18 +270,14 @@ $("#btnDeleteActive").addEventListener("click", async () => {
       if(!/id\s*,\s*name\s*,\s*category\s*,\s*country/.test(header)){ $("#importStatus").innerHTML = "⚠️ En-tête invalide. Utilise: <code>id,name,category,country,club?</code>"; return; }
       const batch = db.batch(); let count=0;
       for(const line of lines){
-        const [id,name,category,country,club,poids] = line.split(",").map(s=>s? s.trim():"");
+        const [id,name,category,country,club] = line.split(",").map(s=>s? s.trim():"");
         if(!id) continue;
-        batch.set(db.collection("athletes").doc(id), {id,name,category:category||cat,country,club:club||"",round:rnd,poids:poids||"",active:true},{merge:true}); count++;
+        batch.set(db.collection("athletes").doc(id), {id,name,category:category||cat,country,club:club||"",round:rnd,active:true},{merge:true}); count++;
       }
       try{ await batch.commit(); $("#importStatus").textContent = `✅ ${count} athlètes importés.`; fbStatusConnected(); refreshAdminList(); }
       catch(e){ fbStatusDisconnected(e?.message); $("#importStatus").textContent = "❌ Erreur import: "+e.message; }
     });
-    
-
-// ... existing code ...
-
-function startAdmin(){ settingsDocRef.get().then(s=>{ if(s.exists()){ const d=s.data()||{}; $("#selCategory").value=d.currentCategory||$("#selCategory").value; $("#selRound").value=d.currentRound||$("#selRound").value; $("#poids").value=d.currentPoids||$("#poids").value; } refreshAdminList(); }).catch(e=>fbStatusDisconnected(e?.message)); }
+    function startAdmin(){ settingsDocRef.get().then(s=>{ if(s.exists){ const d=s.data()||{}; $("#selCategory").value=d.currentCategory||$("#selCategory").value; $("#selRound").value=d.currentRound||$("#selRound").value; } refreshAdminList(); }).catch(e=>fbStatusDisconnected(e?.message)); }
     function refreshAdminList(){
       const box=$("#adminList"); box.innerHTML="<em>Chargement…</em>";
       const cat=currentCategory||$("#selCategory").value; const rnd=currentRound||$("#selRound").value;
@@ -344,8 +285,8 @@ function startAdmin(){ settingsDocRef.get().then(s=>{ if(s.exists()){ const d=s.
         const rows=[]; snap.forEach(doc=>{ const d=doc.data(); if((d.round||rnd)===rnd && d.active!==false){ rows.push({id:doc.id, ...d}); } });
         rows.sort((a,b)=> a.id.localeCompare(b.id));
         if(!rows.length){ box.textContent="Aucun athlète pour cette sélection."; return; }
-        let html="<table><tr><th>ID</th><th>Nom</th><th>Catégorie</th><th>Poids</th><th>Round</th><th>Pays</th><th>Club</th></tr>";
-        rows.forEach(r=> html+=`<tr><td>${r.id}</td><td>${r.name||""}</td><td>${r.category||""}</td><td>${r.poids||""}</td><td>${r.round||""}</td><td>${r.country||""}</td><td>${r.club||""}</td></tr>`);
+        let html="<table><tr><th>ID</th><th>Nom</th><th>Catégorie</th><th>Round</th><th>Pays</th><th>Club</th></tr>";
+        rows.forEach(r=> html+=`<tr><td>${r.id}</td><td>${r.name||""}</td><td>${r.category||""}</td><td>${r.round||""}</td><td>${r.country||""}</td><td>${r.club||""}</td></tr>`);
         html+="</table>"; box.innerHTML=html;
       }).catch(e=>fbStatusDisconnected(e?.message));
     }
@@ -357,14 +298,12 @@ function startAdmin(){ settingsDocRef.get().then(s=>{ if(s.exists()){ const d=s.
       const okBadge = submitted ? `<span id="${a.id}_ok" class="chip ok">✅ OK</span>` : `<span id="${a.id}_ok" class="chip ok hidden">✅ OK</span>`;
       const submitBtn = `<button class="btn small" id="${a.id}_submit" ${submitted?"style='display:none'":""} onclick="submitScore('${a.id}')">Soumettre</button>`;
       const editBtn = `<button class="btn small ghost" id="${a.id}_edit" ${submitted?"":"style='display:none'"} onclick="enableEdit('${a.id}')">✏️ Modifier</button>`;
-      
-      // Check if this is a final round (semi-final or final)
-      const isFinalRound = currentRound && (currentRound.toLowerCase().includes('final') || currentRound.toLowerCase().includes('demi') || currentRound.toLowerCase().includes('semi'));
-      
-      let resultSection = '';
-      if (isFinalRound) {
-        // Show both result and place for final rounds
-        resultSection = `
+      return `<div class="card" id="${a.id}_card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><b>${a.id}</b> – ${a.name||""} <span class="badge">${a.category||""} • ${a.round||""}</span></div>
+          <div class="muted">Juge: ${judgeCode||"—"}</div>
+        </div>
+        <div class="row" style="margin-top:8px">
           <div class="col-6"><label>Résultat</label>
             <select ${dis} id="${a.id}_result" style="width:100%;">
               <option value="">Sélectionner...</option>
@@ -379,31 +318,7 @@ function startAdmin(){ settingsDocRef.get().then(s=>{ if(s.exists()){ const d=s.
               <option value="2">2eme place</option>
               <option value="3">3eme place</option>
             </select>
-          </div>`;
-      } else {
-        // Show only result and next round for early rounds
-        resultSection = `
-          <div class="col-6"><label>Résultat</label>
-            <select ${dis} id="${a.id}_result" style="width:100%;">
-              <option value="">Sélectionner...</option>
-              <option value="win">✅ Win</option>
-              <option value="lose">❌ Lose</option>
-            </select>
           </div>
-          <div class="col-6"><label>Prochain Round</label>
-            <div style="padding:8px;background:var(--bg-light);border-radius:4px;color:var(--text-muted);">
-              ${getNextRound(currentRound)}
-            </div>
-          </div>`;
-      }
-      
-      return `<div class="card" id="${a.id}_card">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div><b>${a.id}</b> – ${a.name||""} <span class="badge">${a.category||""} / ${a.poids||""} • ${a.round||""}</span></div>
-          <div class="muted">Juge: ${judgeCode||"—"}</div>
-        </div>
-        <div class="row" style="margin-top:8px">
-          ${resultSection}
           <div class="col-12" style="display:flex; gap:8px; justify-content:flex-end; align-items:center; margin-top:8px">
             ${okBadge}
             ${submitBtn}
@@ -411,18 +326,6 @@ function startAdmin(){ settingsDocRef.get().then(s=>{ if(s.exists()){ const d=s.
           </div>
         </div>
       </div>`;
-    }
-    
-    function getNextRound(currentRound) {
-      if (!currentRound) return "—";
-      const roundLower = currentRound.toLowerCase();
-      if (roundLower.includes('64')) return "Round 32";
-      if (roundLower.includes('32')) return "Round 16";
-      if (roundLower.includes('16')) return "Quart de finale";
-      if (roundLower.includes('quart')) return "Demi-finale";
-      if (roundLower.includes('demi') || roundLower.includes('semi')) return "Finale";
-      if (roundLower.includes('final')) return "Champion";
-      return "—";
     }
     function refreshJudgeList(){
       const host=$("#judgeList"); host.innerHTML="<em>Chargement…</em>";
@@ -442,32 +345,17 @@ function startAdmin(){ settingsDocRef.get().then(s=>{ if(s.exists()){ const d=s.
     async function submitScore(athleteId){
       if(!judgeCode){ alert("Connexion juge requise."); return; }
       const result = document.getElementById(athleteId+"_result").value;
-      const isFinalRound = currentRound && (currentRound.toLowerCase().includes('final') || currentRound.toLowerCase().includes('demi') || currentRound.toLowerCase().includes('semi'));
-      
-      // Only require place for final rounds
-      if(!result || (isFinalRound && !document.getElementById(athleteId+"_place").value)){ 
-        alert(isFinalRound ? "Veuillez sélectionner Win/Lose et une place." : "Veuillez sélectionner Win/Lose."); 
-        return; 
-      }
-      
+      const place = document.getElementById(athleteId+"_place").value;
+      if(!result || !place){ alert("Veuillez sélectionner Win/Lose et une place."); return; }
       try{
-        const data = {
+        await db.collection("scores").doc(`${athleteId}_${judgeCode}`).set({
           athlete: athleteId, judge: judgeCode,
-          result,
+          result, place,
           category: currentCategory, round: currentRound,
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
-        
-        // Only include place for final rounds
-        if (isFinalRound) {
-          data.place = document.getElementById(athleteId+"_place").value;
-        }
-        
-        await db.collection("scores").doc(`${athleteId}_${judgeCode}`).set(data, { merge:true });
+        }, { merge:true });
         document.getElementById(`${athleteId}_result`).disabled=true;
-        if (isFinalRound) {
-          document.getElementById(`${athleteId}_place`).disabled=true;
-        }
+        document.getElementById(`${athleteId}_place`).disabled=true;
         document.getElementById(`${athleteId}_submit`).style.display="none";
         document.getElementById(`${athleteId}_edit`).style.display="";
         const ok = document.getElementById(`${athleteId}_ok`); ok.classList.remove("hidden");
@@ -475,16 +363,13 @@ function startAdmin(){ settingsDocRef.get().then(s=>{ if(s.exists()){ const d=s.
         fbStatusConnected();
       }catch(e){
         fbStatusDisconnected(e?.message);
-        alert("Erreur d'envoi : "+e.message);
+        alert("Erreur d’envoi : "+e.message);
       }
     }
     window.submitScore=submitScore;
     function enableEdit(athleteId){
       document.getElementById(`${athleteId}_result`).disabled=false;
-      const isFinalRound = currentRound && (currentRound.toLowerCase().includes('final') || currentRound.toLowerCase().includes('demi') || currentRound.toLowerCase().includes('semi'));
-      if (isFinalRound) {
-        document.getElementById(`${athleteId}_place`).disabled=false;
-      }
+      document.getElementById(`${athleteId}_place`).disabled=false;
       document.getElementById(`${athleteId}_submit`).style.display="";
       document.getElementById(`${athleteId}_edit`).style.display="none";
     }
@@ -495,8 +380,7 @@ function startAdmin(){ settingsDocRef.get().then(s=>{ if(s.exists()){ const d=s.
     function startDisplay(){ refreshDisplay(); if(unsubScores) unsubScores(); unsubScores=db.collection("scores").orderBy("updatedAt","desc").onSnapshot(()=>refreshDisplay(), e=>fbStatusDisconnected(e?.message)); }
     function isQualRound(r){ return (r||"").toLowerCase().includes("round 1") || (r||"").toLowerCase().includes("prélim"); }
     function refreshDisplay(){
-      const table=$("#displayTable"); const cat=currentCategory, rnd=currentRound, pds=currentPoids;
-      $("#displayCategory").textContent = cat+" / "+pds;
+      const table=$("#displayTable"); const cat=currentCategory, rnd=currentRound;
       setPhaseBanner(rnd);
       Promise.all([ db.collection("athletes").where("category","==",cat).get(), db.collection("scores").get() ])
       .then(([athSnap, scoreSnap])=>{
@@ -515,56 +399,24 @@ function startAdmin(){ settingsDocRef.get().then(s=>{ if(s.exists()){ const d=s.
         }
         rows.sort((a,b)=> b.winRate - a.winRate || b.avgScore - a.avgScore);
         const top3 = rows.slice(0, 3);
-        
-        // Check if this is a final round (semi-final or final)
-        const isFinalRound = rnd && (rnd.toLowerCase().includes('final') || rnd.toLowerCase().includes('demi') || rnd.toLowerCase().includes('semi'));
-        
-        if (isFinalRound) {
-          // Show podium and medals for final rounds
-          $("#p1_name").textContent = top3[0]?.name || "—";
-          $("#p1_score").textContent = "🥇 Gold";
-          $("#p2_name").textContent = top3[1]?.name || "—";
-          $("#p2_score").textContent = "🥈 Silver";
-          $("#p3_name").textContent = top3[2]?.name || "—";
-          $("#p3_score").textContent = "🥉 Bronze";
-          
-          // Show podium
-          document.querySelector('.podium').style.display = 'grid';
-          
-          // Show detailed results table
-          table.innerHTML="<tr><th>Rang</th><th>Athlète</th><th>Vict.</th><th>Déf.</th><th>% Vict.</th><th>Score Moy.</th></tr>";
-          top3.forEach((r,i)=>{
-            const tr=document.createElement("tr");
-            tr.innerHTML = `<td>${i+1}</td><td>${r.name}</td><td>${r.wins}</td><td>${r.losses}</td><td>${r.winRate.toFixed(1)}%</td><td>${r.avgScore.toFixed(1)}</td>`;
-            table.appendChild(tr);
-          });
-        } else {
-          // For early rounds (64, 32, 16), show only basic info
-          $("#p1_name").textContent = "Qualification";
-          $("#p1_score").textContent = "Round";
-          $("#p2_name").textContent = "En";
-          $("#p2_score").textContent = "Cours";
-          $("#p3_name").textContent = "";
-          $("#p3_score").textContent = "";
-          
-          // Hide podium for early rounds
-          document.querySelector('.podium').style.display = 'none';
-          
-          // Show simplified table with just athlete names and rank
-          table.innerHTML="<tr><th>Rang</th><th>Athlète</th></tr>";
-          rows.forEach((r,i)=>{
-            if (i < 10) { // Show top 10 for early rounds
-              const tr=document.createElement("tr");
-              tr.innerHTML = `<td>${i+1}</td><td>${r.name}</td>`;
-              table.appendChild(tr);
-            }
-          });
-        }
+        // Podium
+        $("#p1_name").textContent = top3[0]?.name || "—";
+        $("#p1_score").textContent = "Gold";
+        $("#p2_name").textContent = top3[1]?.name || "—";
+        $("#p2_score").textContent = "Silver";
+        $("#p3_name").textContent = top3[2]?.name || "—";
+        $("#p3_score").textContent = "Bronze";
+        // Table
+        const qualifying = isQualRound(rnd);
+        table.innerHTML="<tr><th>Rang</th><th>Athlète</th></tr>";
+        top3.forEach((r,i)=>{
+          const tr=document.createElement("tr");
+          tr.innerHTML = `<td>${i+1}</td><td>${r.name}</td>`;
+          table.appendChild(tr);
+        });
         fbStatusConnected();
       }).catch(e=>fbStatusDisconnected(e?.message));
     }
-  })
-  })
   </script>
 </body>
 </html>
